@@ -85,6 +85,9 @@ def find_lane_sliding_window(binary_birdview, nwindows, margin, minpix, lane_lef
     lane_right.update_lane(right_fit_pixel, right_fit_meter, detected, right_lane_x, right_lane_y)
 
     ploty = np.linspace(0, h - 1, h)
+    # Take average of previous frames
+    left_fit_pixel = lane_left.average_fit()
+    right_fit_pixel = lane_right.average_fit()
 
     left_fit_x = left_fit_pixel[0] * ploty ** 2 + left_fit_pixel[1] * ploty + left_fit_pixel[2]
     right_fit_x = right_fit_pixel[0] * ploty ** 2 + right_fit_pixel[1] * ploty + right_fit_pixel[2]
@@ -96,8 +99,6 @@ def find_lane_sliding_window(binary_birdview, nwindows, margin, minpix, lane_lef
 
 
 def find_lane_based_on_previous_frame(binary_birdview, margin, lane_left, lane_right, ym_per_pix, xm_per_pix):
-    out_img = np.dstack((binary_birdview, binary_birdview, binary_birdview)) * 255
-
     h, w = binary_birdview.shape[:2]
     nonzeroxy = binary_birdview.nonzero()
     nonzerox = nonzeroxy[1]
@@ -137,13 +138,38 @@ def find_lane_based_on_previous_frame(binary_birdview, margin, lane_left, lane_r
     lane_left.update_lane(left_fit_pixel, left_fit_meter, detected, left_lane_x, left_lane_y)
     lane_right.update_lane(right_fit_pixel, right_fit_meter, detected, right_lane_x, right_lane_y)
 
+    # Take average of previous frames
+    left_fit_pixel = lane_left.average_fit()
+    right_fit_pixel = lane_right.average_fit()
     ploty = np.linspace(0, h - 1, h)
 
     left_fit_x = left_fit_pixel[0] * ploty ** 2 + left_fit_pixel[1] * ploty + left_fit_pixel[2]
     right_fit_x = right_fit_pixel[0] * ploty ** 2 + right_fit_pixel[1] * ploty + right_fit_pixel[2]
 
+    out_img = np.dstack((binary_birdview, binary_birdview, binary_birdview)) * 255
     out_img[left_lane_y, left_lane_x] = [255, 0, 0]
     out_img[right_lane_y, right_lane_x] = [0, 0, 255]
+
+    ## Visualization ##
+    # Create an image to draw on and an image to show the selection window
+    window_img = np.zeros_like(out_img)
+    # Color in left and right line pixels
+
+    # Generate a polygon to illustrate the search window area
+    # And recast the x and y points into usable format for cv2.fillPoly()
+    left_line_window1 = np.array([np.transpose(np.vstack([left_fit_x - margin, ploty]))])
+    left_line_window2 = np.array([np.flipud(np.transpose(np.vstack([left_fit_x + margin,
+                                                                    ploty])))])
+    left_line_pts = np.hstack((left_line_window1, left_line_window2))
+    right_line_window1 = np.array([np.transpose(np.vstack([right_fit_x - margin, ploty]))])
+    right_line_window2 = np.array([np.flipud(np.transpose(np.vstack([right_fit_x + margin,
+                                                                     ploty])))])
+    right_line_pts = np.hstack((right_line_window1, right_line_window2))
+
+    # Draw the lane onto the warped blank image
+    cv2.fillPoly(window_img, np.int_([left_line_pts]), (0, 255, 0))
+    cv2.fillPoly(window_img, np.int_([right_line_pts]), (0, 255, 0))
+    out_img = cv2.addWeighted(out_img, 1, window_img, 0.3, 0)
 
     return out_img, lane_left, lane_right, left_fit_x, right_fit_x, ploty
 

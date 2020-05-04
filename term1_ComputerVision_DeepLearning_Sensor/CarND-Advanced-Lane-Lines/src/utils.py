@@ -48,6 +48,9 @@ class Line():
             (1 + (2 * self.last_fit_meter[0] * y_eval + self.last_fit_meter[1]) ** 2) ** 3) / np.absolute(
             2 * self.last_fit_meter[0])
 
+    def average_fit(self):
+        return np.mean(self.recent_fits, axis=0)
+
 
 # def transform_to_the_road(undistorted_img, Minv, left_lane, right_lane):
 def transform_to_the_road(undistorted_img, Minv, left_fit_x, right_fit_x, ploty):
