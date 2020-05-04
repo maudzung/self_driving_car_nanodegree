@@ -13,6 +13,43 @@ from detect_lanelines import find_lane_sliding_window, find_lane_based_on_previo
 from utils import transform_to_the_road, Line
 
 
+def calculate_distance_from_lane_center(lane_left, lane_right, w, h, xm_per_pix):
+    distance_meter = -100
+    if lane_left.detected and lane_right.detected:
+        center_bottom_left_x = np.mean(lane_left.allx[lane_left.ally > 0.9 * h])
+        center_bottom_right_x = np.mean(lane_right.allx[lane_right.ally > 0.9 * h])
+        lane_width = center_bottom_right_x - center_bottom_left_x
+        distance_pixel = abs((center_bottom_left_x + lane_width / 2) - w / 2)
+        distance_meter = distance_pixel * xm_per_pix
+    return distance_meter
+
+
+def compose_final_output(onroad_img, out_binary_birdview, w, h, lane_left, lane_right, distance_meter):
+    off_x, off_y = 30, 30
+    thumb_ratio = 0.2
+    thumb_h, thumb_w = int(thumb_ratio * h), int(thumb_ratio * w)
+
+    # add a gray rectangle to highlight the upper area
+    topmask = np.copy(onroad_img)
+    topmask = cv2.rectangle(topmask, pt1=(0, 0), pt2=(w, thumb_h + off_y * 2), color=(0, 0, 0), thickness=cv2.FILLED)
+    blend_on_road = cv2.addWeighted(src1=onroad_img, alpha=1., src2=topmask, beta=0.2, gamma=0)
+
+    # add thumbnail of binary image
+    thumb_binary = cv2.resize(out_binary_birdview, dsize=(thumb_w, thumb_h))
+    # thumb_binary = np.dstack([thumb_binary, thumb_binary, thumb_binary]) * 255
+    blend_on_road[off_y:thumb_h + off_y, off_x:off_x + thumb_w, :] = thumb_binary
+
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    cv2.putText(blend_on_road, 'Left curvature radius: {:.2f} m'.format(lane_left.curvature_in_meter), (800, 30), font,
+                0.9, (255, 255, 255), 2, cv2.LINE_AA)
+    cv2.putText(blend_on_road, 'Right curvature radius: {:.2f} m'.format(lane_right.curvature_in_meter), (800, 80),
+                font, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
+    cv2.putText(blend_on_road, 'Offset from center: {:.2f} m'.format(distance_meter), (800, 130), font, 0.9,
+                (255, 255, 255), 2, cv2.LINE_AA)
+
+    return blend_on_road
+
+
 def process_image(image):
     global lane_left, lane_right, frame_idx
     frame_idx += 1
@@ -23,6 +60,7 @@ def process_image(image):
         [(w * 5 / 6) + 60, h],
         [(w / 2 + 55), h / 2 + 100]
     ])
+
     dst = np.float32([
         [(w / 4), 0],
         [(w / 4), h],
@@ -35,23 +73,29 @@ def process_image(image):
                                    thresh_s_channel)
 
     M, Minv = get_transform_matrix(src, dst)
-    binary_warped = warped_birdview(binary_output, M)
+    binary_birdview = warped_birdview(binary_output, M)
 
     if (frame_idx > 0) and lane_left.detected and lane_right.detected:
-        out_img, lane_left, lane_right, left_fit_x, right_fit_x, ploty = find_lane_based_on_previous_frame(
-            binary_warped, margin, lane_left, lane_right)
+        out_binary_birdview, lane_left, lane_right, left_fit_x, right_fit_x, ploty = find_lane_based_on_previous_frame(
+            binary_birdview, margin, lane_left, lane_right, ym_per_pix, xm_per_pix)
     else:
-        out_img, lane_left, lane_right, left_fit_x, right_fit_x, ploty = find_lane_sliding_window(binary_warped,
-                                                                                                  nwindows, margin,
-                                                                                                  minpix, lane_left,
-                                                                                                  lane_right)
+        print('find_lane_sliding_window, frame_idx: {}'.format(frame_idx))
+        out_binary_birdview, lane_left, lane_right, left_fit_x, right_fit_x, ploty = find_lane_sliding_window(
+            binary_birdview,
+            nwindows, margin,
+            minpix, lane_left,
+            lane_right, ym_per_pix, xm_per_pix)
 
-    out_img = transform_to_the_road(undistorted_img, Minv, left_fit_x, right_fit_x, ploty)
+    lane_left.cal_curvature(h, xm_per_pix)
+    lane_right.cal_curvature(h, xm_per_pix)
 
-    # lane_left.cal_curvature(left_fit, h)
-    # lane_right.cal_curvature(right_fit, h)
+    distance_meter = calculate_distance_from_lane_center(lane_left, lane_right, w, h, xm_per_pix)
 
-    return out_img
+    onroad_img = transform_to_the_road(undistorted_img, Minv, left_fit_x, right_fit_x, ploty)
+    # onroad_img = cv2.polylines(onroad_img, [src.astype(np.int32)], True, (255, 0, 0), 5)
+
+    blend_on_road = compose_final_output(onroad_img, out_binary_birdview, w, h, lane_left, lane_right, distance_meter)
+    return blend_on_road
 
 
 def main():
@@ -64,9 +108,9 @@ def main():
     ## Where start_second and end_second are integer values representing the start and end of the subclip
     ## You may also uncomment the following line for a subclip of the first 5 seconds
     ##clip1 = VideoFileClip("test_videos/solidWhiteRight.mp4").subclip(0,5)
-    # video_fn = 'project_video.mp4'
-    video_fn = 'challenge_video.mp4'
-    video_fn = 'harder_challenge_video.mp4'
+    video_fn = 'project_video.mp4'
+    # video_fn = 'challenge_video.mp4'
+    # video_fn = 'harder_challenge_video.mp4'
     video_output_path = os.path.join(video_output_dir, video_fn)
     clip1 = VideoFileClip(os.path.join('../', video_fn))
     white_clip = clip1.fl_image(process_image)  # NOTE: this function expects color images!!
@@ -84,5 +128,8 @@ if __name__ == '__main__':
     thresh_mag = (30, 100)
     thresh_dir = (0.7, 1.3)
     thresh_s_channel = (170, 255)
+    # Define conversions in x and y from pixels space to meters
+    ym_per_pix = 30 / 720  # meters per pixel in y dimension
+    xm_per_pix = 3.7 / 700  # meters per pixel in x dimension
     ret, mtx, dist, rvecs, tvecs = calibrate(is_save=False)
     main()

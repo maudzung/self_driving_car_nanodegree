@@ -20,10 +20,11 @@ class Line():
         # polynomial coefficients averaged over the last n iterations
         self.best_fit = None
         # polynomial coefficients for the most recent fit
-        self.last_fit = None
+        self.last_fit_pixel = None
+        self.last_fit_meter = None
         self.recent_fits = collections.deque(maxlen=buffer_len)
         # radius of curvature of the line in some units
-        self.radius_of_curvature = None
+        self.curvature_in_meter = None
         # distance in meters of vehicle center from the line
         self.line_base_pos = None
         # difference in fit coefficients between last and new fits
@@ -33,17 +34,19 @@ class Line():
         # y values for detected line pixels
         self.ally = None
 
-    def update_lane(self, new_curve_fit, detected, new_lane_x, new_lane_y):
+    def update_lane(self, new_curve_fit_pixel, new_curve_fit_meter, detected, new_lane_x, new_lane_y):
         self.detected = detected
-        self.last_fit = new_curve_fit
-        self.recent_fits.append(new_curve_fit)
+        self.last_fit_pixel = new_curve_fit_pixel
+        self.last_fit_meter = new_curve_fit_meter
+        self.recent_fits.append(new_curve_fit_pixel)
         self.allx = new_lane_x
         self.ally = new_lane_y
 
-    def cal_curvature(self, curve_fit, h):
-        y_eval = int(h / 2)
-        self.radius_of_curvature = np.sqrt((1 + (2 * curve_fit[0] * y_eval + curve_fit[1]) ** 2) ** 3) / np.absolute(
-            2 * curve_fit[0])
+    def cal_curvature(self, h, ym_per_pix):
+        y_eval = int(h / 2) * ym_per_pix
+        self.curvature_in_meter = np.sqrt(
+            (1 + (2 * self.last_fit_meter[0] * y_eval + self.last_fit_meter[1]) ** 2) ** 3) / np.absolute(
+            2 * self.last_fit_meter[0])
 
 
 # def transform_to_the_road(undistorted_img, Minv, left_lane, right_lane):
@@ -51,10 +54,15 @@ def transform_to_the_road(undistorted_img, Minv, left_fit_x, right_fit_x, ploty)
     h, w = undistorted_img.shape[:2]
 
     road_warped = np.zeros_like(undistorted_img, dtype=np.uint8)
+
+    # Recast the x and y points into usable format for cv2.fillPoly()
     pts_left = np.array([np.transpose(np.vstack([left_fit_x, ploty]))])
     pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fit_x, ploty])))])
     pts = np.hstack((pts_left, pts_right))
+
+    # Draw the lane onto the warped blank image
     cv2.fillPoly(road_warped, np.int_([pts]), (0, 255, 0))
+    # Warp the blank back to original image space using inverse perspective matrix (Minv)
     road_unwarped = cv2.warpPerspective(road_warped, Minv, (w, h))  # Warp back to original image space
 
     blend_img = cv2.addWeighted(undistorted_img, 1., road_unwarped, 0.5, 0)
@@ -66,7 +74,7 @@ if __name__ == '__main__':
     from undistort_img import undistort, calibrate
     from gradient import get_binary_img
     from perspective_transform import get_transform_matrix, warped_birdview
-    from detect_lanelines import fit_polynomial
+    from detect_lanelines import find_lane_sliding_window
 
     nwindows = 9
     margin = 100
@@ -76,6 +84,9 @@ if __name__ == '__main__':
     thresh_mag = (30, 100)
     thresh_dir = (0.7, 1.3)
     thresh_s_channel = (170, 255)
+
+    ym_per_pix = 30 / 720  # meters per pixel in y dimension
+    xm_per_pix = 3.7 / 700  # meters per pixel in x dimension
 
     output_images_dir = '../output_images'
     output_detectedline_img = os.path.join(output_images_dir, 'onroad_test_images')
@@ -109,13 +120,17 @@ if __name__ == '__main__':
         M, Minv = get_transform_matrix(src, dst)
 
         warped = warped_birdview(img, M)
-        binary_warped = warped_birdview(binary_output, M)
+        binary_birdview = warped_birdview(binary_output, M)
 
-        #     left_lane_x, left_lane_y, right_lane_x, right_lane_y, out_img = find_lane_boundary(binary_warped)
-        out_img, left_fit, right_fit, left_fit_x, right_fit_x, ploty = fit_polynomial(binary_warped, nwindows, margin,
-                                                                                      minpix)
+        lane_left, lane_right = Line(buffer_len=20), Line(buffer_len=20)
 
-        blend_img = transform_to_the_road(undistorted_img, Minv, left_fit, right_fit)
+        out_img, left_fit, right_fit, left_fit_x, right_fit_x, ploty = find_lane_sliding_window(binary_birdview,
+                                                                                                nwindows, margin,
+                                                                                                minpix, lane_left,
+                                                                                                lane_right, ym_per_pix,
+                                                                                                xm_per_pix)
+
+        blend_img = transform_to_the_road(undistorted_img, Minv, left_fit_x, right_fit_x, ploty)
 
         plt.cla()
         # plt.plot(left_fit_x, ploty, color='yellow')

@@ -9,16 +9,16 @@ import matplotlib.pyplot as plt
 
 # Using histogram --> finding peak at left and right
 # Using sliding window method to find the curve
-def find_lane_sliding_window(binary_warped, nwindows, margin, minpix, lane_left, lane_right):
-    h, w = binary_warped.shape[:2]
+def find_lane_sliding_window(binary_birdview, nwindows, margin, minpix, lane_left, lane_right, ym_per_pix, xm_per_pix):
+    h, w = binary_birdview.shape[:2]
     step_y = int(h / nwindows)
-    nonzeroxy = binary_warped.nonzero()
+    nonzeroxy = binary_birdview.nonzero()
     nonzerox = nonzeroxy[1]
     nonzeroy = nonzeroxy[0]
 
-    out_img = np.dstack((binary_warped, binary_warped, binary_warped)) * 255
+    out_img = np.dstack((binary_birdview, binary_birdview, binary_birdview)) * 255
 
-    half_below = binary_warped[int(h / 2):, :]
+    half_below = binary_birdview[int(h / 2):, :]
     hist = np.sum(half_below, axis=0)
     left_x_peak = np.argmax(hist[:int(w / 2)])
     right_x_peak = np.argmax(hist[int(w / 2):]) + int(w / 2)
@@ -66,24 +66,28 @@ def find_lane_sliding_window(binary_warped, nwindows, margin, minpix, lane_left,
 
     detected = True
     if len(left_lane_x) == 0:
-        left_fit = lane_left.last_fit
+        left_fit_pixel = lane_left.last_fit_pixel
+        left_fit_meter = lane_left.left_fit_meter
         detected = False
     else:
-        left_fit = np.polyfit(left_lane_y, left_lane_x, 2)
+        left_fit_pixel = np.polyfit(left_lane_y, left_lane_x, 2)
+        left_fit_meter = np.polyfit(left_lane_y * ym_per_pix, left_lane_x * xm_per_pix, 2)
 
     if len(right_lane_x) == 0:
-        right_fit = lane_right.last_fit
+        right_fit_pixel = lane_right.last_fit_pixel
+        right_fit_meter = lane_left.right_fit_meter
         detected = False
     else:
-        right_fit = np.polyfit(right_lane_y, right_lane_x, 2)
+        right_fit_pixel = np.polyfit(right_lane_y, right_lane_x, 2)
+        right_fit_meter = np.polyfit(right_lane_y * ym_per_pix, right_lane_x * xm_per_pix, 2)
 
-    lane_left.update_lane(left_fit, detected, left_lane_x, left_lane_y)
-    lane_right.update_lane(right_fit, detected, right_lane_x, right_lane_y)
+    lane_left.update_lane(left_fit_pixel, left_fit_meter, detected, left_lane_x, left_lane_y)
+    lane_right.update_lane(right_fit_pixel, right_fit_meter, detected, right_lane_x, right_lane_y)
 
     ploty = np.linspace(0, h - 1, h)
 
-    left_fit_x = left_fit[0] * ploty ** 2 + left_fit[1] * ploty + left_fit[2]
-    right_fit_x = right_fit[0] * ploty ** 2 + right_fit[1] * ploty + right_fit[2]
+    left_fit_x = left_fit_pixel[0] * ploty ** 2 + left_fit_pixel[1] * ploty + left_fit_pixel[2]
+    right_fit_x = right_fit_pixel[0] * ploty ** 2 + right_fit_pixel[1] * ploty + right_fit_pixel[2]
 
     out_img[left_lane_y, left_lane_x] = [255, 0, 0]
     out_img[right_lane_y, right_lane_x] = [0, 0, 255]
@@ -91,19 +95,19 @@ def find_lane_sliding_window(binary_warped, nwindows, margin, minpix, lane_left,
     return out_img, lane_left, lane_right, left_fit_x, right_fit_x, ploty
 
 
-def find_lane_based_on_previous_frame(binary_warped, margin, lane_left, lane_right):
-    out_img = np.dstack((binary_warped, binary_warped, binary_warped)) * 255
+def find_lane_based_on_previous_frame(binary_birdview, margin, lane_left, lane_right, ym_per_pix, xm_per_pix):
+    out_img = np.dstack((binary_birdview, binary_birdview, binary_birdview)) * 255
 
-    h, w = binary_warped.shape[:2]
-    nonzeroxy = binary_warped.nonzero()
+    h, w = binary_birdview.shape[:2]
+    nonzeroxy = binary_birdview.nonzero()
     nonzerox = nonzeroxy[1]
     nonzeroy = nonzeroxy[0]
 
-    left_fit = lane_left.last_fit
-    right_fit = lane_right.last_fit
+    left_fit_pixel = lane_left.last_fit_pixel
+    right_fit_pixel = lane_right.last_fit_pixel
 
-    left_fit_x = left_fit[0] * nonzeroy ** 2 + left_fit[1] * nonzeroy + left_fit[2]
-    right_fit_x = right_fit[0] * nonzeroy ** 2 + right_fit[1] * nonzeroy + right_fit[2]
+    left_fit_x = left_fit_pixel[0] * nonzeroy ** 2 + left_fit_pixel[1] * nonzeroy + left_fit_pixel[2]
+    right_fit_x = right_fit_pixel[0] * nonzeroy ** 2 + right_fit_pixel[1] * nonzeroy + right_fit_pixel[2]
 
     left_lane_idx = (nonzerox >= left_fit_x - margin) & (nonzerox < left_fit_x + margin)
     right_lane_idx = (nonzerox >= right_fit_x - margin) & (nonzerox < right_fit_x + margin)
@@ -115,24 +119,28 @@ def find_lane_based_on_previous_frame(binary_warped, margin, lane_left, lane_rig
 
     detected = True
     if len(left_lane_x) == 0:
-        left_fit = lane_left.last_fit
+        left_fit_pixel = lane_left.last_fit_pixel
+        left_fit_meter = lane_left.left_fit_meter
         detected = False
     else:
-        left_fit = np.polyfit(left_lane_y, left_lane_x, 2)
+        left_fit_pixel = np.polyfit(left_lane_y, left_lane_x, 2)
+        left_fit_meter = np.polyfit(left_lane_y * ym_per_pix, left_lane_x * xm_per_pix, 2)
 
     if len(right_lane_x) == 0:
-        right_fit = lane_right.last_fit
+        right_fit_pixel = lane_right.last_fit_pixel
+        right_fit_meter = lane_left.right_fit_meter
         detected = False
     else:
-        right_fit = np.polyfit(right_lane_y, right_lane_x, 2)
+        right_fit_pixel = np.polyfit(right_lane_y, right_lane_x, 2)
+        right_fit_meter = np.polyfit(right_lane_y * ym_per_pix, right_lane_x * xm_per_pix, 2)
 
-    lane_left.update_lane(left_fit, detected, left_lane_x, left_lane_y)
-    lane_right.update_lane(right_fit, detected, right_lane_x, right_lane_y)
+    lane_left.update_lane(left_fit_pixel, left_fit_meter, detected, left_lane_x, left_lane_y)
+    lane_right.update_lane(right_fit_pixel, right_fit_meter, detected, right_lane_x, right_lane_y)
 
     ploty = np.linspace(0, h - 1, h)
 
-    left_fit_x = left_fit[0] * ploty ** 2 + left_fit[1] * ploty + left_fit[2]
-    right_fit_x = right_fit[0] * ploty ** 2 + right_fit[1] * ploty + right_fit[2]
+    left_fit_x = left_fit_pixel[0] * ploty ** 2 + left_fit_pixel[1] * ploty + left_fit_pixel[2]
+    right_fit_x = right_fit_pixel[0] * ploty ** 2 + right_fit_pixel[1] * ploty + right_fit_pixel[2]
 
     out_img[left_lane_y, left_lane_x] = [255, 0, 0]
     out_img[right_lane_y, right_lane_x] = [0, 0, 255]
@@ -164,6 +172,9 @@ if __name__ == '__main__':
     thresh_mag = (30, 100)
     thresh_dir = (0.7, 1.3)
     thresh_s_channel = (170, 255)
+    # Define conversions in x and y from pixels space to meters
+    ym_per_pix = 30 / 720  # meters per pixel in y dimension
+    xm_per_pix = 3.7 / 700  # meters per pixel in x dimension
     for idx, img_path_ in enumerate(img_paths):
         img_fn = os.path.basename(img_path_)[:-4]
         img = cv2.cvtColor(cv2.imread(img_path_), cv2.COLOR_BGR2RGB)  # BGR --> RGB
@@ -178,6 +189,7 @@ if __name__ == '__main__':
             [(w * 5 / 6) + 60, h],
             [(w / 2 + 55), h / 2 + 100]
         ])
+
         dst = np.float32([
             [(w / 4), 0],
             [(w / 4), h],
@@ -187,19 +199,21 @@ if __name__ == '__main__':
         M, Minv = get_transform_matrix(src, dst)
 
         warped = warped_birdview(img, M)
-        binary_warped = warped_birdview(binary_output, M)
+        binary_birdview = warped_birdview(binary_output, M)
 
         lane_left = Line(buffer_len=20)
         lane_right = Line(buffer_len=20)
 
-        #     left_lane_x, left_lane_y, right_lane_x, right_lane_y, out_img = find_lane_boundary(binary_warped)
-        out_img, lane_left, lane_right, left_fit_x, right_fit_x, ploty = find_lane_sliding_window(binary_warped,
+        #     left_lane_x, left_lane_y, right_lane_x, right_lane_y, out_img = find_lane_boundary(binary_birdview)
+        out_img, lane_left, lane_right, left_fit_x, right_fit_x, ploty = find_lane_sliding_window(binary_birdview,
                                                                                                   nwindows, margin,
                                                                                                   minpix, lane_left,
-                                                                                                  lane_right)
+                                                                                                  lane_right,
+                                                                                                  ym_per_pix,
+                                                                                                  xm_per_pix)
         plt.cla()
         plt.plot(left_fit_x, ploty, color='yellow')
         plt.plot(right_fit_x, ploty, color='yellow')
         plt.imshow(out_img)
         plt.savefig(os.path.join(output_detectedline_img, 'n{}.jpg'.format(img_fn)))
-    #   plt.imshow(binary_warped, cmap='gray')
+    #   plt.imshow(binary_birdview, cmap='gray')
