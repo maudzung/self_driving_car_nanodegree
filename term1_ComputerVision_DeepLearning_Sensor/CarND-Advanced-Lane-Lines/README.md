@@ -56,7 +56,7 @@ in `gradient.py`).  Here's an example of my output for this step.
 
 - For color: I converted the original RGB images to HLS images, then I applied a threshold *thresh_s_channel* to only 
 the *s channel*.
-_ I applied thresholds to gradient in *x* axis, *y* axis, *magnitute*, and *direction*. <br>
+- I applied thresholds to gradient in *x* axis, *y* axis, *magnitute*, and *direction*. <br>
 I chose the thresholds as below:
 ```python
 thresh_gradx = (20, 100)
@@ -115,26 +115,26 @@ and the right lane respectively. This step was implemented in function `find_lan
 from lines #25 to lines #28.
 
 ##### 4.2. Sliding window
-When I had the initial points on the 2 lanes, I started search the whole lanes by using the sliding 
+When I had the initial points on the 2 lanelines, I started search the whole lanelines by using the sliding 
 window method.
 This step was implemented in function `find_lane_sliding_window()` from lines #30 to lines #102.
 There are several parameters in this step:
 - nwindows: Number of windows on y axis
 - margin: The half width of windows on x axis
-- minpix: If the number of detected points in the window > minpix, the initial point in the next window
+- minpix: If the number of detected points in the window > minpix, the initial point of lanelines in the next window
 will be updated.
 
-When I obtained two lists of points on the left lane and the right lane, I fit a quadratic polynomial to the lists of points 
+When I obtained two lists of points on the left laneline and the right laneline, I fit a quadratic polynomial to the lists of points 
 by using `np.polyfit()` function.
 
 An example of result using the sliding window methods
 ![detect lane lines](./output_images/detected_lane_test_images/ntest3.jpg)
 
-#### 5. Calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
+#### 5. Calculated the radius of curvature of the lanelines and the position of the vehicle with respect to center.
 The position of the vehicle with respect to center was calculated in lines #16 through #24 in function 
 `calculate_distance_from_lane_center()` in `main.py`
 
-The radius of curvature of the lane was computed in lines #48 through #52 in my code in `utils.py`
+The radius of curvature of the lanelines was computed in lines #48 through #52 in my code in `utils.py`
 
 #### 6. Warped the detected lane boundaries back onto the original image
 
@@ -146,14 +146,15 @@ Here is an example of my result on a test image:
 
 ### Pipeline (video)
 
-1. The first frame, I using the sliding window to find the two lane lines.
+1. For the first frame, I using the sliding window to find the two lanelines.
 
-2. The next frames, I considered the conditions: whether both two lane lines detected or not.
-If both lane lines are detected, I will search the lane lines based on the previous results on the previous frames.
-Otherwise, I used the sliding window to search the lane lines.
+2. For the next frames, I considered the conditions: whether both two lanelines detected or not.
+If both lanelines are detected, I will search the lanelines based on the previous results on the previous frames.
+Otherwise, I used the sliding window to search the lanelines.
 
-I used a buffer to store fit parameters of 20 frames. I computed an average of the buffer to find the fit parameters of 
-the two lane lines. The code is in `average_fit()` function in `utils.py`, and the lines #145 to #147 in `detect_lanelines.py`
+I used a buffer to store fit parameters of the lanelines of 20 frames. I computed an average of the buffer to find the 
+fit parameters of the two lanelines. 
+The code is in `average_fit()` function in `utils.py`, and the lines #145 to #147 in `detect_lanelines.py`
 
 This step was implemented in my code in `main.py` from lines #81 to lines #89.
 
@@ -172,3 +173,4 @@ The reason for this error is mainly because of a shadow on the road that leads t
 
 ### Future work
 - Try to smooth the detected lane lines
+- Improve the algorithm to work well on the challenge videos.
