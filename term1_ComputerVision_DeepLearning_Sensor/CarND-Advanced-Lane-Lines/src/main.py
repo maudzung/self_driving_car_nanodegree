@@ -24,8 +24,8 @@ def calculate_distance_from_lane_center(lane_left, lane_right, w, h, xm_per_pix)
     return distance_meter
 
 
-def compose_final_output(onroad_img, out_binary_birdview, w, h, lane_left, lane_right, distance_meter):
-    off_x, off_y = 30, 30
+def compose_final_output(onroad_img, out_binary_birdview, w, h, mean_curvature_in_meter, distance_meter):
+    off_x, off_y = 100, 30
     thumb_ratio = 0.2
     thumb_h, thumb_w = int(thumb_ratio * h), int(thumb_ratio * w)
 
@@ -40,11 +40,11 @@ def compose_final_output(onroad_img, out_binary_birdview, w, h, lane_left, lane_
     blend_on_road[off_y:thumb_h + off_y, off_x:off_x + thumb_w, :] = thumb_binary
 
     font = cv2.FONT_HERSHEY_SIMPLEX
-    cv2.putText(blend_on_road, 'Left curvature radius: {:.2f} m'.format(lane_left.curvature_in_meter), (800, 30), font,
+    cv2.putText(blend_on_road, 'Birdview', (int(off_x + thumb_w / 4), int(thumb_h + 2 * off_y)), font,
                 0.9, (255, 255, 255), 2, cv2.LINE_AA)
-    cv2.putText(blend_on_road, 'Right curvature radius: {:.2f} m'.format(lane_right.curvature_in_meter), (800, 80),
-                font, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
-    cv2.putText(blend_on_road, 'Offset from center: {:.2f} m'.format(distance_meter), (800, 130), font, 0.9,
+    cv2.putText(blend_on_road, 'Lane curvature: {:.2f} m'.format(mean_curvature_in_meter), (700, 60), font,
+                0.9, (255, 255, 255), 2, cv2.LINE_AA)
+    cv2.putText(blend_on_road, 'Distance from lane center: {:.2f} m'.format(distance_meter), (700, 130), font, 0.9,
                 (255, 255, 255), 2, cv2.LINE_AA)
 
     return blend_on_road
@@ -75,11 +75,13 @@ def process_image(image):
     M, Minv = get_transform_matrix(src, dst)
     binary_birdview = warped_birdview(binary_output, M)
 
+    # diff_curvature_in_meter = abs(lane_right.curvature_in_meter - lane_left.curvature_in_meter)
+
+    # if (frame_idx > 0) and lane_left.detected and lane_right.detected and (diff_curvature_in_meter < 5000.):
     if (frame_idx > 0) and lane_left.detected and lane_right.detected:
         out_binary_birdview, lane_left, lane_right, left_fit_x, right_fit_x, ploty = find_lane_based_on_previous_frame(
             binary_birdview, margin, lane_left, lane_right, ym_per_pix, xm_per_pix)
     else:
-        print('find_lane_sliding_window, frame_idx: {}'.format(frame_idx))
         out_binary_birdview, lane_left, lane_right, left_fit_x, right_fit_x, ploty = find_lane_sliding_window(
             binary_birdview,
             nwindows, margin,
@@ -90,11 +92,12 @@ def process_image(image):
     lane_right.cal_curvature(h, xm_per_pix)
 
     distance_meter = calculate_distance_from_lane_center(lane_left, lane_right, w, h, xm_per_pix)
+    mean_curvature_in_meter = (lane_left.curvature_in_meter + lane_right.curvature_in_meter)/2
 
     onroad_img = transform_to_the_road(undistorted_img, Minv, left_fit_x, right_fit_x, ploty)
     # onroad_img = cv2.polylines(onroad_img, [src.astype(np.int32)], True, (255, 0, 0), 5)
 
-    blend_on_road = compose_final_output(onroad_img, out_binary_birdview, w, h, lane_left, lane_right, distance_meter)
+    blend_on_road = compose_final_output(onroad_img, out_binary_birdview, w, h, mean_curvature_in_meter, distance_meter)
     return blend_on_road
 
 
@@ -112,6 +115,7 @@ def main():
     # video_fn = 'challenge_video.mp4'
     # video_fn = 'harder_challenge_video.mp4'
     video_output_path = os.path.join(video_output_dir, video_fn)
+    # clip1 = VideoFileClip(os.path.join('../', video_fn)).subclip(0,2)
     clip1 = VideoFileClip(os.path.join('../', video_fn))
     white_clip = clip1.fl_image(process_image)  # NOTE: this function expects color images!!
     white_clip.write_videofile(video_output_path, audio=False)

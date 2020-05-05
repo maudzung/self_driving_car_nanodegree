@@ -24,7 +24,7 @@ class Line():
         self.last_fit_meter = None
         self.recent_fits = collections.deque(maxlen=buffer_len)
         # radius of curvature of the line in some units
-        self.curvature_in_meter = None
+        self.curvature_in_meter = 0
         # distance in meters of vehicle center from the line
         self.line_base_pos = None
         # difference in fit coefficients between last and new fits
@@ -33,6 +33,9 @@ class Line():
         self.allx = None
         # y values for detected line pixels
         self.ally = None
+
+    def reset(self):
+        self.recent_fits.clear()
 
     def update_lane(self, new_curve_fit_pixel, new_curve_fit_meter, detected, new_lane_x, new_lane_y):
         self.detected = detected
@@ -43,7 +46,7 @@ class Line():
         self.ally = new_lane_y
 
     def cal_curvature(self, h, ym_per_pix):
-        y_eval = int(h / 2) * ym_per_pix
+        y_eval = (h - 1) * ym_per_pix # bottom image
         self.curvature_in_meter = np.sqrt(
             (1 + (2 * self.last_fit_meter[0] * y_eval + self.last_fit_meter[1]) ** 2) ** 3) / np.absolute(
             2 * self.last_fit_meter[0])
@@ -65,10 +68,20 @@ def transform_to_the_road(undistorted_img, Minv, left_fit_x, right_fit_x, ploty)
 
     # Draw the lane onto the warped blank image
     cv2.fillPoly(road_warped, np.int_([pts]), (0, 255, 0))
+
+    # Draw 2 curves
+    left_fit_x = left_fit_x.astype(np.int32)
+    right_fit_x = right_fit_x.astype(np.int32)
+    ploty = ploty.astype(np.int32)
+
+    for idx in range(len(ploty) - 2):
+        cv2.line(road_warped, (left_fit_x[idx], ploty[idx]), (left_fit_x[idx + 1], ploty[idx + 1]), (255,0,0), 20)
+        cv2.line(road_warped, (right_fit_x[idx], ploty[idx]), (right_fit_x[idx + 1], ploty[idx + 1]), (255,0,0), 20)
+
     # Warp the blank back to original image space using inverse perspective matrix (Minv)
     road_unwarped = cv2.warpPerspective(road_warped, Minv, (w, h))  # Warp back to original image space
 
-    blend_img = cv2.addWeighted(undistorted_img, 1., road_unwarped, 0.5, 0)
+    blend_img = cv2.addWeighted(undistorted_img, 1., road_unwarped, 0.8, 0)
 
     return blend_img
 

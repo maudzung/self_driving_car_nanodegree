@@ -10,6 +10,10 @@ import matplotlib.pyplot as plt
 # Using histogram --> finding peak at left and right
 # Using sliding window method to find the curve
 def find_lane_sliding_window(binary_birdview, nwindows, margin, minpix, lane_left, lane_right, ym_per_pix, xm_per_pix):
+    # # Clear the 2 lane buffers
+    # lane_left.reset()
+    # lane_right.reset()
+
     h, w = binary_birdview.shape[:2]
     step_y = int(h / nwindows)
     nonzeroxy = binary_birdview.nonzero()
@@ -84,11 +88,11 @@ def find_lane_sliding_window(binary_birdview, nwindows, margin, minpix, lane_lef
     lane_left.update_lane(left_fit_pixel, left_fit_meter, detected, left_lane_x, left_lane_y)
     lane_right.update_lane(right_fit_pixel, right_fit_meter, detected, right_lane_x, right_lane_y)
 
-    ploty = np.linspace(0, h - 1, h)
     # Take average of previous frames
     left_fit_pixel = lane_left.average_fit()
     right_fit_pixel = lane_right.average_fit()
 
+    ploty = np.linspace(0, h - 1, h)
     left_fit_x = left_fit_pixel[0] * ploty ** 2 + left_fit_pixel[1] * ploty + left_fit_pixel[2]
     right_fit_x = right_fit_pixel[0] * ploty ** 2 + right_fit_pixel[1] * ploty + right_fit_pixel[2]
 
@@ -141,8 +145,8 @@ def find_lane_based_on_previous_frame(binary_birdview, margin, lane_left, lane_r
     # Take average of previous frames
     left_fit_pixel = lane_left.average_fit()
     right_fit_pixel = lane_right.average_fit()
-    ploty = np.linspace(0, h - 1, h)
 
+    ploty = np.linspace(0, h - 1, h)
     left_fit_x = left_fit_pixel[0] * ploty ** 2 + left_fit_pixel[1] * ploty + left_fit_pixel[2]
     right_fit_x = right_fit_pixel[0] * ploty ** 2 + right_fit_pixel[1] * ploty + right_fit_pixel[2]
 

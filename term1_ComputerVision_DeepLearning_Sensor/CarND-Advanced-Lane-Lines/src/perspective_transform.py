@@ -62,21 +62,22 @@ if __name__ == '__main__':
         ])
         M, Minv = get_transform_matrix(src, dst)
 
-        warped = warped_birdview(img, M)
+        warped = warped_birdview(undistorted_img, M)
         binary_warped = warped_birdview(binary_output, M)
 
-        draw_img = np.copy(img)
-        draw_img = cv2.polylines(draw_img, [src.astype(np.int32)], True, (255, 0, 0))
+        draw_img = np.copy(undistorted_img)
+        draw_img = cv2.polylines(draw_img, [src.astype(np.int32)], True, (255, 0, 0), thickness=10)
+        warped = cv2.polylines(warped, [dst.astype(np.int32)], True, (255, 0, 0), thickness=10)
 
         fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
         ax1.imshow(draw_img)
-        ax1.set_title('Original Image', fontsize=20)
+        ax1.set_title('Undistorted Image', fontsize=20)
         ax2.imshow(warped)
         ax2.set_title('Perspective Transform Image', fontsize=20)
         plt.savefig(os.path.join(output_warped_img, 'color_{}.jpg'.format(img_fn)))
 
         ax1.imshow(binary_output, cmap='gray')
-        ax1.set_title('Original Image', fontsize=20)
+        ax1.set_title('Undistorted Image', fontsize=20)
         ax2.imshow(binary_warped, cmap='gray')
         ax2.set_title('Perspective Transform Image', fontsize=20)
         plt.savefig(os.path.join(output_warped_img, 'binary_{}.jpg'.format(img_fn)), cmap='gray')
